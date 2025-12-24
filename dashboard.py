@@ -57,7 +57,7 @@ if df is not None:
         
         countries = ['All'] + sorted(list(df['Country'].unique()))
         selected_country = st.sidebar.selectbox("Country", countries)
-        
+
         # Clear selection buttons
         col_clear1, col_clear2 = st.sidebar.columns(2)
         with col_clear1:
@@ -88,7 +88,7 @@ if df is not None:
         # Main Layout
         st.title("📊 Global YouTube Statistics Dashboard")
         st.markdown("Dynamic overview of top creators, geography, and growth trends.")
-        
+
         # Show active filters
         active_filters = []
         if st.session_state.map_selected_countries:
@@ -274,7 +274,7 @@ if df is not None:
                     # Add Youtuber name to custom_data for selection
                     scatter_data['Youtuber_Data'] = scatter_data['Youtuber']
                     fig_scat = px.scatter(scatter_data, x='subscribers', y='Avg_Yearly_Earnings', 
-                                          color='category', size='video views', hover_name='Youtuber',
+                                  color='category', size='video views', hover_name='Youtuber',
                                           log_x=True, log_y=True, title="Subscribers vs Yearly Earnings (Click or Lasso to Filter)",
                                           template="plotly_dark",
                                           custom_data=['Youtuber_Data'])
@@ -356,6 +356,238 @@ if df is not None:
                             pass
                 else:
                     st.info("No valid data for scatter plot.")
+            else:
+                st.info("No data available for selected filters.")
+
+        st.markdown("---")
+        
+        # Row 3: Uploads and Channel Type
+        c5, c6 = st.columns(2)
+        
+        with c5:
+            st.subheader("📤 Top Channels by Uploads")
+            if len(df_filtered) > 0:
+                uploads_data = df_filtered[df_filtered['uploads'] > 0].nlargest(10, 'uploads')[['Youtuber', 'uploads', 'subscribers']]
+                if len(uploads_data) > 0:
+                    fig_uploads = px.bar(uploads_data, x='uploads', y='Youtuber', orientation='h',
+                                         color='subscribers', color_continuous_scale='viridis',
+                                         title="Top 10 Channels by Total Uploads", template="plotly_dark",
+                                         labels={'uploads': 'Total Uploads', 'subscribers': 'Subscribers'})
+                    fig_uploads.update_layout(yaxis={'categoryorder':'total ascending'})
+                    st.plotly_chart(fig_uploads, use_container_width=True)
+                else:
+                    st.info("No upload data available.")
+            else:
+                st.info("No data available for selected filters.")
+        
+        with c6:
+            st.subheader("📺 Channel Type Distribution")
+            if len(df_filtered) > 0:
+                channel_type_data = df_filtered['channel_type'].value_counts().head(10).reset_index()
+                channel_type_data.columns = ['Channel Type', 'Count']
+                if len(channel_type_data) > 0:
+                    fig_channel_type = px.pie(channel_type_data, values='Count', names='Channel Type',
+                                             title="Distribution by Channel Type", template="plotly_dark",
+                                             hole=0.4)
+                    st.plotly_chart(fig_channel_type, use_container_width=True)
+                else:
+                    st.info("No channel type data available.")
+            else:
+                st.info("No data available for selected filters.")
+
+        # Row 4: Recent Engagement and Earnings Range
+        c7, c8 = st.columns(2)
+        
+        with c7:
+            st.subheader("🔥 Recent Engagement (Last 30 Days)")
+            if len(df_filtered) > 0:
+                # Filter valid data
+                recent_data = df_filtered[
+                    (df_filtered['video_views_for_the_last_30_days'].notna()) & 
+                    (df_filtered['video_views_for_the_last_30_days'] > 0)
+                ].nlargest(10, 'video_views_for_the_last_30_days')
+                
+                if len(recent_data) > 0:
+                    fig_recent = px.bar(recent_data, 
+                                       x='video_views_for_the_last_30_days', 
+                                       y='Youtuber',
+                                       orientation='h',
+                                       color='subscribers_for_last_30_days',
+                                       color_continuous_scale='reds',
+                                       title="Top 10 by Views (Last 30 Days)", 
+                                       template="plotly_dark",
+                                       labels={'video_views_for_the_last_30_days': 'Views (30 Days)', 
+                                              'subscribers_for_last_30_days': 'New Subs (30 Days)'})
+                    fig_recent.update_layout(yaxis={'categoryorder':'total ascending'})
+                    st.plotly_chart(fig_recent, use_container_width=True)
+                else:
+                    st.info("No recent engagement data available.")
+            else:
+                st.info("No data available for selected filters.")
+        
+        with c8:
+            st.subheader("💵 Earnings Range Analysis")
+            if len(df_filtered) > 0:
+                earnings_data = df_filtered[
+                    (df_filtered['lowest_yearly_earnings'] > 0) & 
+                    (df_filtered['highest_yearly_earnings'] > 0)
+                ].nlargest(15, 'highest_yearly_earnings')
+                
+                if len(earnings_data) > 0:
+                    # Create a range visualization
+                    fig_earnings = go.Figure()
+                    
+                    fig_earnings.add_trace(go.Scatter(
+                        x=earnings_data['Youtuber'],
+                        y=earnings_data['lowest_yearly_earnings'],
+                        mode='markers',
+                        name='Lowest Earnings',
+                        marker=dict(color='lightblue', size=8)
+                    ))
+                    
+                    fig_earnings.add_trace(go.Scatter(
+                        x=earnings_data['Youtuber'],
+                        y=earnings_data['highest_yearly_earnings'],
+                        mode='markers',
+                        name='Highest Earnings',
+                        marker=dict(color='orange', size=8)
+                    ))
+                    
+                    # Add lines to show range
+                    for idx, row in earnings_data.iterrows():
+                        fig_earnings.add_trace(go.Scatter(
+                            x=[row['Youtuber'], row['Youtuber']],
+                            y=[row['lowest_yearly_earnings'], row['highest_yearly_earnings']],
+                            mode='lines',
+                            line=dict(color='gray', width=1, dash='dash'),
+                            showlegend=False,
+                            hoverinfo='skip'
+                        ))
+                    
+                    fig_earnings.update_layout(
+                        title="Earnings Range: Lowest vs Highest (Top 15)",
+                        xaxis_title="YouTuber",
+                        yaxis_title="Yearly Earnings ($)",
+                        template="plotly_dark",
+                        xaxis=dict(tickangle=-45, tickfont=dict(size=8)),
+                        yaxis=dict(type='log'),
+                        height=400,
+                        hovermode='closest'
+                    )
+                    st.plotly_chart(fig_earnings, use_container_width=True)
+                else:
+                    st.info("No earnings data available.")
+            else:
+                st.info("No data available for selected filters.")
+
+        # Row 5: Monthly Creation Patterns
+        st.markdown("---")
+        c9 = st.columns(1)[0]
+        
+        with c9:
+            st.subheader("📅 Channel Creation by Month")
+            if len(df_filtered) > 0:
+                # Count channels by month (filter out NaN)
+                monthly_counts = df_filtered['created_month'].dropna().value_counts().reset_index()
+                monthly_counts.columns = ['Month', 'Count']
+                
+                if len(monthly_counts) > 0:
+                    # Order months properly
+                    month_order = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                    # Only keep months that exist in data
+                    available_months = [m for m in month_order if m in monthly_counts['Month'].values]
+                    monthly_counts['Month'] = pd.Categorical(monthly_counts['Month'], 
+                                                           categories=available_months, 
+                                                           ordered=True)
+                    monthly_counts = monthly_counts.sort_values('Month')
+                    
+                    fig_monthly = px.bar(monthly_counts, x='Month', y='Count',
+                                        title="Channels Created by Month",
+                                        color='Count',
+                                        color_continuous_scale='blues',
+                                  template="plotly_dark")
+                    st.plotly_chart(fig_monthly, use_container_width=True)
+                else:
+                    st.info("No monthly creation data available.")
+            else:
+                st.info("No data available for selected filters.")
+
+        # Row 6: Ranking Analysis
+        st.markdown("---")
+        c10 = st.columns(1)[0]
+        
+        with c10:
+            st.subheader("🏅 Global Rank vs Country Rank")
+            if len(df_filtered) > 0:
+                ranking_data = df_filtered[
+                    (df_filtered['rank'].notna()) & 
+                    (df_filtered['country_rank'].notna()) &
+                    (df_filtered['rank'] <= 100)  # Top 100 for readability
+                ].nlargest(20, 'subscribers')
+                
+                if len(ranking_data) > 0:
+                    fig_rank = px.scatter(ranking_data, 
+                                         x='rank', 
+                                         y='country_rank',
+                                         size='subscribers',
+                                         color='Country',
+                                         hover_name='Youtuber',
+                                         title="Global Rank vs Country Rank (Top 20 by Subscribers)",
+                                         template="plotly_dark",
+                                         labels={'rank': 'Global Rank', 'country_rank': 'Country Rank'})
+                    fig_rank.update_xaxes(autorange="reversed")
+                    fig_rank.update_yaxes(autorange="reversed")
+                    st.plotly_chart(fig_rank, use_container_width=True)
+                else:
+                    st.info("No ranking data available.")
+            else:
+                st.info("No data available for selected filters.")
+
+        # Row 7: Country Demographics Analysis
+        st.markdown("---")
+        c12 = st.columns(1)[0]
+        
+        with c12:
+            st.subheader("🌍 Country Demographics vs YouTube Success")
+            if len(df_filtered) > 0:
+                # Aggregate by country
+                country_analysis = df_filtered.groupby('Country').agg({
+                    'subscribers': 'sum',
+                    'Population': 'first',
+                    'Unemployment rate': 'first',
+                    'Urban_population': 'first',
+                    'Gross tertiary education enrollment (%)': 'first'
+                }).reset_index()
+                
+                # Filter valid data
+                country_analysis = country_analysis[
+                    (country_analysis['Population'].notna()) & 
+                    (country_analysis['subscribers'] > 0) &
+                    (country_analysis['Population'] > 0)
+                ]
+                
+                if len(country_analysis) > 0:
+                    # Create bubble chart: Population vs Subscribers
+                    fig_demo = px.scatter(country_analysis,
+                                         x='Population',
+                                         y='subscribers',
+                                         size='Urban_population',
+                                         color='Unemployment rate',
+                                         hover_name='Country',
+                                         hover_data={'Gross tertiary education enrollment (%)': True},
+                                         title="Country Demographics: Population vs Total Subscribers",
+                                         template="plotly_dark",
+                                         labels={'Population': 'Country Population',
+                                                'subscribers': 'Total Subscribers',
+                                                'Urban_population': 'Urban Population',
+                                                'Unemployment rate': 'Unemployment Rate (%)'},
+                                         color_continuous_scale='RdYlGn_r',
+                                         log_x=True,
+                                         log_y=True)
+                    st.plotly_chart(fig_demo, use_container_width=True)
+                else:
+                    st.info("No demographic data available.")
             else:
                 st.info("No data available for selected filters.")
 
