@@ -3,3 +3,4 @@ matplotlib
 seaborn
 streamlit
 plotly
+altair>=5.0.0
